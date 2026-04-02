@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { TextInput, Button, ActivityIndicator, Text, Card, Title, Paragraph, useTheme } from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { TextInput, Button, Text, Card, Title, useTheme, Divider } from 'react-native-paper';
+import { Banco, inserirUsuario, atualizarUsuario } from '../api/bd/Bd';
 
-export default function Cadastro() {
+export default function Cadastro({ usuario, onCancel, onSuccess }) {
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
   const [cepInput, setCepInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [address, setAddress] = useState({
@@ -16,17 +19,61 @@ export default function Cadastro() {
 
   const theme = useTheme();
 
+  useEffect(() => {
+    if (usuario) {
+      setNome(usuario.NOME_US || '');
+      setEmail(usuario.EMAIL_US || '');
+      setCepInput(usuario.CEP_US || '');
+      setAddress({
+        logradouro: usuario.LOGRADOURO_US || '',
+        bairro: usuario.BAIRRO_US || '',
+        localidade: usuario.LOCALIDADE_US || '',
+        uf: usuario.UF_US || '',
+        numero: usuario.NUMERO_US || '',
+        complemento: usuario.COMPLEMENTO_US || ''
+      });
+    }
+  }, [usuario]);
+
   const updateAddress = (field, value) => {
     setAddress(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleCadastro = () => {
-    alert('Cadastro realizado com sucesso!');
+  const handleSalvar = async () => {
+    if (!nome || !email || !cepInput) {
+      Alert.alert('Aviso', 'Por favor, preencha os campos obrigatórios (Nome, Email e CEP).');
+      return;
+    }
+
+    const dados = {
+      nome,
+      email,
+      cep: cepInput,
+      ...address
+    };
+
+    setLoading(true);
+    try {
+      const db = await Banco();
+      if (usuario) {
+        await atualizarUsuario(db, usuario.ID_US, dados);
+        Alert.alert('Sucesso', 'Usuário atualizado com sucesso!');
+      } else {
+        await inserirUsuario(db, dados);
+        Alert.alert('Sucesso', 'Usuário cadastrado com sucesso!');
+      }
+      onSuccess();
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Erro', 'Ocorreu um erro ao salvar os dados.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const buscaCep = async () => {
     if (!cepInput || cepInput.length !== 8) {
-      alert('Por favor, digite um CEP válido com 8 dígitos.');
+      Alert.alert('Aviso', 'Por favor, digite um CEP válido com 8 dígitos.');
       return;
     }
     
@@ -34,36 +81,29 @@ export default function Cadastro() {
     try {
       let url = `https://viacep.com.br/ws/${cepInput}/json/`;
       const resp = await fetch(url);
-      
-      if (!resp.ok) {
-        throw new Error('Erro na resposta do servidor');
-      }
-
       const data = await resp.json();
       
       if (data.erro) {
-        alert('CEP não encontrado');
-        setAddress({
+        Alert.alert('Erro', 'CEP não encontrado');
+        setAddress(prev => ({
+          ...prev,
           logradouro: '',
           bairro: '',
           localidade: '',
-          uf: '',
-          numero: '',
-          complemento: ''
-        });
+          uf: ''
+        }));
       } else {
-        setAddress({
+        setAddress(prev => ({
+          ...prev,
           logradouro: data.logradouro || '',
           bairro: data.bairro || '',
           localidade: data.localidade || '',
-          uf: data.uf || '',
-          numero: '',
-          complemento: data.complemento || ''
-        });
+          uf: data.uf || ''
+        }));
       }
     } catch (error) {
       console.error(error);
-      alert('Ocorreu um erro ao buscar o CEP. Verifique sua conexão.');
+      Alert.alert('Erro', 'Ocorreu um erro ao buscar o CEP.');
     } finally {
       setLoading(false);
     }
@@ -73,26 +113,46 @@ export default function Cadastro() {
     <ScrollView contentContainerStyle={styles.container}>
       <Card style={styles.card}>
         <Card.Content>
-          <Title style={styles.title}>Cadastro de Endereço</Title>
+          <Title style={styles.title}>{usuario ? 'Editar Registro' : 'Novo Cadastro'}</Title>
+          
           <TextInput
-            label="Digite o CEP"
-            value={cepInput}
-            onChangeText={setCepInput}
+            label="Nome Completo"
+            value={nome}
+            onChangeText={setNome}
             mode="outlined"
-            keyboardType="numeric"
-            maxLength={8}
             style={styles.input}
-            left={<TextInput.Icon icon="map-marker" />}
           />
-          <Button
-            mode="contained"
-            onPress={buscaCep}
-            loading={loading}
-            disabled={loading || !cepInput}
-            style={styles.button}
-          >
-            {loading ? 'Buscando...' : 'Busca CEP'}
-          </Button>
+          <TextInput
+            label="E-mail"
+            value={email}
+            onChangeText={setEmail}
+            mode="outlined"
+            keyboardType="email-address"
+            style={styles.input}
+          />
+          
+          <Divider style={styles.divider} />
+          
+          <View style={styles.row}>
+            <TextInput
+              label="CEP"
+              value={cepInput}
+              onChangeText={setCepInput}
+              mode="outlined"
+              keyboardType="numeric"
+              maxLength={8}
+              style={[styles.input, { flex: 1, marginRight: 10 }]}
+            />
+            <Button
+              mode="contained"
+              onPress={buscaCep}
+              loading={loading}
+              disabled={loading || !cepInput}
+              style={styles.btnBusca}
+            >
+              Buscar
+            </Button>
+          </View>
 
           <View style={styles.form}>
             <TextInput
@@ -118,11 +178,11 @@ export default function Cadastro() {
                 style={[styles.input, { flex: 2, marginRight: 10 }]}
               />
               <TextInput
-                label="Estado"
+                label="UF"
                 value={address.uf}
                 onChangeText={val => updateAddress('uf', val)}
                 mode="outlined"
-                editable={false}
+                maxLength={2}
                 style={[styles.input, { flex: 1 }]}
               />
             </View>
@@ -144,13 +204,23 @@ export default function Cadastro() {
               />
             </View>
             
-            <Button 
-              mode="contained" 
-              onPress={handleCadastro}
-              style={[styles.button, { marginTop: 20, backgroundColor: theme.colors.secondary }]}
-            >
-              Finalizar Cadastro
-            </Button>
+            <View style={styles.buttonContainer}>
+              <Button 
+                mode="outlined" 
+                onPress={onCancel}
+                style={[styles.button, { flex: 1, marginRight: 10 }]}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                mode="contained" 
+                onPress={handleSalvar}
+                loading={loading}
+                style={[styles.button, { flex: 1, backgroundColor: theme.colors.primary }]}
+              >
+                Salvar
+              </Button>
+            </View>
           </View>
         </Card.Content>
       </Card>
@@ -161,8 +231,8 @@ export default function Cadastro() {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
+    paddingTop: 40,
     flexGrow: 1,
-    justifyContent: 'center',
   },
   card: {
     elevation: 4,
@@ -173,23 +243,28 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   input: {
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  button: {
-    marginTop: 10,
-    marginBottom: 10,
-  },
-  loader: {
+  divider: {
     marginVertical: 10,
   },
+  btnBusca: {
+    height: 50,
+    justifyContent: 'center',
+    marginTop: 6,
+  },
   form: {
-    marginTop: 20,
+    marginTop: 10,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  label: {
-    fontWeight: 'bold',
+  buttonContainer: {
+    flexDirection: 'row',
+    marginTop: 20,
+  },
+  button: {
+    paddingVertical: 4,
   }
 });
