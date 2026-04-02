@@ -1,9 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { TextInput, Button, Text, Card, Title, useTheme, Divider } from 'react-native-paper';
+import { TextInput, Button, Card, Title, useTheme, Divider } from 'react-native-paper';
 import { Banco, inserirUsuario, atualizarUsuario } from '../api/bd/Bd';
+import { Usuario, UsuarioInput } from '../model/types';
 
-export default function Cadastro({ usuario, onCancel, onSuccess }) {
+interface CadastroProps {
+  usuario: Usuario | null;
+  onCancel: () => void;
+  onSuccess: () => void;
+}
+
+export default function Cadastro({ usuario, onCancel, onSuccess }: CadastroProps) {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [cepInput, setCepInput] = useState('');
@@ -35,7 +42,7 @@ export default function Cadastro({ usuario, onCancel, onSuccess }) {
     }
   }, [usuario]);
 
-  const updateAddress = (field, value) => {
+  const updateAddress = (field: string, value: string) => {
     setAddress(prev => ({ ...prev, [field]: value }));
   };
 
@@ -45,11 +52,16 @@ export default function Cadastro({ usuario, onCancel, onSuccess }) {
       return;
     }
 
-    const dados = {
-      nome,
-      email,
-      cep: cepInput,
-      ...address
+    const dados: UsuarioInput = {
+      NOME_US: nome,
+      EMAIL_US: email,
+      CEP_US: cepInput,
+      LOGRADOURO_US: address.logradouro,
+      BAIRRO_US: address.bairro,
+      LOCALIDADE_US: address.localidade,
+      UF_US: address.uf,
+      NUMERO_US: address.numero,
+      COMPLEMENTO_US: address.complemento
     };
 
     setLoading(true);
@@ -79,7 +91,7 @@ export default function Cadastro({ usuario, onCancel, onSuccess }) {
     
     setLoading(true);
     try {
-      let url = `https://viacep.com.br/ws/${cepInput}/json/`;
+      const url = `https://viacep.com.br/ws/${cepInput}/json/`;
       const resp = await fetch(url);
       const data = await resp.json();
       

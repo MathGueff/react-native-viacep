@@ -1,10 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, FlatList, Alert, RefreshControl } from 'react-native';
+import { View, StyleSheet, FlatList, Alert, RefreshControl, ListRenderItem } from 'react-native';
 import { Text, Card, Title, Paragraph, Button, FAB, ActivityIndicator, Divider } from 'react-native-paper';
 import { Banco, selectUsuarios, deletaUsuario } from '../api/bd/Bd';
+import { Usuario } from '../model/types';
 
-export default function Lista({ onEdit, onAdd }) {
-  const [usuarios, setUsuarios] = useState([]);
+interface ListaProps {
+  onEdit: (usuario: Usuario) => void;
+  onAdd: () => void;
+}
+
+export default function Lista({ onEdit, onAdd }: ListaProps) {
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -15,7 +21,6 @@ export default function Lista({ onEdit, onAdd }) {
       setUsuarios(data || []);
     } catch (error) {
       console.error(error);
-      // Evitar múltiplos alertas se o componente estiver carregando
       if (!loading) {
         Alert.alert('Erro', 'Não foi possível carregar os dados.');
       }
@@ -27,14 +32,14 @@ export default function Lista({ onEdit, onAdd }) {
 
   useEffect(() => {
     carregarUsuarios();
-  }, []);
+  }, [carregarUsuarios]);
 
-  const onRefresh = React.useCallback(() => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     carregarUsuarios();
   }, [carregarUsuarios]);
 
-  const handleExcluir = (id) => {
+  const handleExcluir = (id: number) => {
     Alert.alert(
       'Confirmar Exclusão',
       'Deseja realmente excluir este registro?',
@@ -53,7 +58,7 @@ export default function Lista({ onEdit, onAdd }) {
     );
   };
 
-  const renderItem = ({ item }) => (
+  const renderItem: ListRenderItem<Usuario> = ({ item }) => (
     <Card style={styles.card}>
       <Card.Content>
         <Title>{item.NOME_US || 'Sem nome'}</Title>
