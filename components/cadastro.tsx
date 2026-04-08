@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
-import { TextInput, Button, Card, Title, useTheme, Divider } from 'react-native-paper';
+import { TextInput, Button, Card, Title, useTheme, Divider, Text } from 'react-native-paper';
+import { Picker } from '@react-native-picker/picker';
 import { Banco, inserirUsuario, atualizarUsuario } from '../api/bd/Bd';
 import { Usuario, UsuarioInput } from '../model/types';
 
@@ -9,6 +10,12 @@ interface CadastroProps {
   onCancel: () => void;
   onSuccess: () => void;
 }
+
+const UFS = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 
+  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 
+  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+];
 
 export default function Cadastro({ usuario, onCancel, onSuccess }: CadastroProps) {
   const [nome, setNome] = useState('');
@@ -189,14 +196,25 @@ export default function Cadastro({ usuario, onCancel, onSuccess }: CadastroProps
                 mode="outlined"
                 style={[styles.input, { flex: 2, marginRight: 10 }]}
               />
-              <TextInput
-                label="UF"
-                value={address.uf}
-                onChangeText={val => updateAddress('uf', val)}
-                mode="outlined"
-                maxLength={2}
-                style={[styles.input, { flex: 1 }]}
-              />
+              <View style={[styles.pickerWrapper, { flex: 1 }]}>
+                <Text style={[styles.pickerLabel, { 
+                  color: theme.colors?.onSurfaceVariant || theme.colors?.text || '#666', 
+                  backgroundColor: theme.colors?.surface || '#fff' 
+                }]}>UF</Text>
+                <View style={[styles.pickerContainer, { borderColor: theme.colors?.outline || theme.colors?.disabled || '#ccc' }]}>
+                  <Picker
+                    selectedValue={address.uf}
+                    onValueChange={(val) => updateAddress('uf', val)}
+                    mode="dropdown"
+                    style={styles.picker}
+                  >
+                    <Picker.Item label="Sel..." value="" />
+                    {UFS.map(uf => (
+                      <Picker.Item key={uf} label={uf} value={uf} />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
             </View>
             <View style={styles.row}>
               <TextInput
@@ -278,5 +296,26 @@ const styles = StyleSheet.create({
   },
   button: {
     paddingVertical: 4,
+  },
+  pickerWrapper: {
+    marginBottom: 12,
+  },
+  pickerLabel: {
+    fontSize: 12,
+    position: 'absolute',
+    top: -10,
+    left: 10,
+    paddingHorizontal: 5,
+    zIndex: 1,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderRadius: 4,
+    height: 50,
+    justifyContent: 'center',
+  },
+  picker: {
+    height: 50,
+    width: '100%',
   }
 });
