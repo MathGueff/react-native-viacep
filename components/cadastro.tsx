@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Alert } from 'react-native';
 import { TextInput, Button, Card, Title, useTheme, Divider, Text } from 'react-native-paper';
 import { Picker } from '@react-native-picker/picker';
@@ -22,6 +22,15 @@ export default function Cadastro({ usuario, onCancel, onSuccess }: CadastroProps
   const [email, setEmail] = useState('');
   const [cepInput, setCepInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{
+    nome?: string;
+    email?: string;
+    cep?: string;
+    logradouro?: string;
+    bairro?: string;
+    localidade?: string;
+    uf?: string;
+  }>({});
   const [address, setAddress] = useState({
     logradouro: '',
     bairro: '',
@@ -51,11 +60,33 @@ export default function Cadastro({ usuario, onCancel, onSuccess }: CadastroProps
 
   const updateAddress = (field: string, value: string) => {
     setAddress(prev => ({ ...prev, [field]: value }));
+    if (errors[field as keyof typeof errors]) {
+      setErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+  };
+
+  const validarEmail = (valor: string): boolean => {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(valor);
+  };
+
+  const validarCep = (valor: string): boolean => {
+    return /^\d{8}$/.test(valor);
   };
 
   const handleSalvar = async () => {
-    if (!nome || !email || !cepInput) {
-      Alert.alert('Aviso', 'Por favor, preencha os campos obrigatórios (Nome, Email e CEP).');
+    const newErrors: typeof errors = {};
+
+    if (!nome.trim()) newErrors.nome = 'Nome é obrigatório.';
+    if (!email || !validarEmail(email)) newErrors.email = 'E-mail inválido. Use o formato: exemplo@dominio.com';
+    if (!cepInput || !validarCep(cepInput)) newErrors.cep = 'CEP inválido. Digite exatamente 8 dígitos numéricos.';
+    if (!address.logradouro.trim()) newErrors.logradouro = 'Logradouro é obrigatório.';
+    if (!address.bairro.trim()) newErrors.bairro = 'Bairro é obrigatório.';
+    if (!address.localidade.trim()) newErrors.localidade = 'Cidade é obrigatória.';
+    if (!address.uf) newErrors.uf = 'Selecione a UF.';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
@@ -90,15 +121,19 @@ export default function Cadastro({ usuario, onCancel, onSuccess }: CadastroProps
     }
   };
 
-  const buscaCep = async () => {
-    if (!cepInput || cepInput.length !== 8) {
-      Alert.alert('Aviso', 'Por favor, digite um CEP válido com 8 dígitos.');
+  const buscaCep = useCallback(async (cep?: string) => {
+    const valorCep = cep || cepInput;
+
+    if (!valorCep || valorCep.length !== 8) {
+      if (!cep) {
+        Alert.alert('Aviso', 'Por favor, digite um CEP válido com 8 dígitos.');
+      }
       return;
     }
     
     setLoading(true);
     try {
-      const url = `https://viacep.com.br/ws/${cepInput}/json/`;
+      const url = `https://viacep.com.br/ws/${valorCep}/json/`;
       const resp = await fetch(url);
       const data = await resp.json();
       
@@ -126,7 +161,8 @@ export default function Cadastro({ usuario, onCancel, onSuccess }: CadastroProps
     } finally {
       setLoading(false);
     }
-  };
+  }, [cepInput]);
+
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -135,36 +171,65 @@ export default function Cadastro({ usuario, onCancel, onSuccess }: CadastroProps
           <Title style={styles.title}>{usuario ? 'Editar Registro' : 'Novo Cadastro'}</Title>
           
           <TextInput
-            label="Nome Completo"
+            label="Nome Completo *"
             value={nome}
-            onChangeText={setNome}
+            onChangeText={(text) => {
+              setNome(text);
+              if (errors.nome) setErrors(prev => ({ ...prev, nome: undefined }));
+            }}
             mode="outlined"
+            error={!!errors.nome}
             style={styles.input}
           />
+          {errors.nome ? <Text style={styles.errorText}>{errors.nome}</Text> : null}
           <TextInput
-            label="E-mail"
+            label="E-mail *"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (errors.email) setErrors(prev => ({ ...prev, email: undefined }));
+            }}
+            onBlur={() => {
+              if (email && !validarEmail(email)) {
+                setErrors(prev => ({ ...prev, email: 'E-mail inválido. Use o formato: exemplo@dominio.com' }));
+              }
+            }}
             mode="outlined"
             keyboardType="email-address"
+            autoCapitalize="none"
+            error={!!errors.email}
             style={styles.input}
           />
+          {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
           
           <Divider style={styles.divider} />
           
           <View style={styles.row}>
             <TextInput
-              label="CEP"
+              label="CEP *"
               value={cepInput}
-              onChangeText={setCepInput}
+              onChangeText={(text) => {
+                const cleaned = text.replace(/[^0-9]/g, '');
+                setCepInput(cleaned);
+                if (errors.cep) setErrors(prev => ({ ...prev, cep: undefined }));
+                if (cleaned.length === 8) {
+                  buscaCep(cleaned);
+                }
+              }}
+              onBlur={() => {
+                if (cepInput && !validarCep(cepInput)) {
+                  setErrors(prev => ({ ...prev, cep: 'CEP inválido. Digite exatamente 8 dígitos.' }));
+                }
+              }}
               mode="outlined"
               keyboardType="numeric"
               maxLength={8}
+              error={!!errors.cep}
               style={[styles.input, { flex: 1, marginRight: 10 }]}
             />
             <Button
               mode="contained"
-              onPress={buscaCep}
+              onPress={() => buscaCep()}
               loading={loading}
               disabled={loading || !cepInput}
               style={styles.btnBusca}
@@ -172,36 +237,45 @@ export default function Cadastro({ usuario, onCancel, onSuccess }: CadastroProps
               Buscar
             </Button>
           </View>
+          {errors.cep ? <Text style={styles.errorText}>{errors.cep}</Text> : null}
 
           <View style={styles.form}>
             <TextInput
-              label="Logradouro"
+              label="Logradouro *"
               value={address.logradouro}
               onChangeText={val => updateAddress('logradouro', val)}
               mode="outlined"
+              error={!!errors.logradouro}
               style={styles.input}
             />
+            {errors.logradouro ? <Text style={styles.errorText}>{errors.logradouro}</Text> : null}
             <TextInput
-              label="Bairro"
+              label="Bairro *"
               value={address.bairro}
               onChangeText={val => updateAddress('bairro', val)}
               mode="outlined"
+              error={!!errors.bairro}
               style={styles.input}
             />
+            {errors.bairro ? <Text style={styles.errorText}>{errors.bairro}</Text> : null}
             <View style={styles.row}>
-              <TextInput
-                label="Cidade"
-                value={address.localidade}
-                onChangeText={val => updateAddress('localidade', val)}
-                mode="outlined"
-                style={[styles.input, { flex: 2, marginRight: 10 }]}
-              />
+              <View style={{ flex: 2, marginRight: 10 }}>
+                <TextInput
+                  label="Cidade *"
+                  value={address.localidade}
+                  onChangeText={val => updateAddress('localidade', val)}
+                  mode="outlined"
+                  error={!!errors.localidade}
+                  style={styles.input}
+                />
+                {errors.localidade ? <Text style={styles.errorText}>{errors.localidade}</Text> : null}
+              </View>
               <View style={[styles.pickerWrapper, { flex: 1 }]}>
                 <Text style={[styles.pickerLabel, { 
-                  color: theme.colors?.onSurfaceVariant || theme.colors?.text || '#666', 
+                  color: errors.uf ? '#d32f2f' : (theme.colors?.onSurfaceVariant || '#666'), 
                   backgroundColor: theme.colors?.surface || '#fff' 
-                }]}>UF</Text>
-                <View style={[styles.pickerContainer, { borderColor: theme.colors?.outline || theme.colors?.disabled || '#ccc' }]}>
+                }]}>UF *</Text>
+                <View style={[styles.pickerContainer, { borderColor: errors.uf ? '#d32f2f' : (theme.colors?.outline || '#ccc') }]}>
                   <Picker
                     selectedValue={address.uf}
                     onValueChange={(val) => updateAddress('uf', val)}
@@ -214,6 +288,7 @@ export default function Cadastro({ usuario, onCancel, onSuccess }: CadastroProps
                     ))}
                   </Picker>
                 </View>
+                {errors.uf ? <Text style={[styles.errorText, { marginTop: 4 }]}>{errors.uf}</Text> : null}
               </View>
             </View>
             <View style={styles.row}>
@@ -246,7 +321,7 @@ export default function Cadastro({ usuario, onCancel, onSuccess }: CadastroProps
                 mode="contained" 
                 onPress={handleSalvar}
                 loading={loading}
-                style={[styles.button, { flex: 1, backgroundColor: theme.colors.primary }]}
+                style={[styles.button, { flex: 1, backgroundColor: theme.colors?.primary }]}
               >
                 Salvar
               </Button>
@@ -296,6 +371,13 @@ const styles = StyleSheet.create({
   },
   button: {
     paddingVertical: 4,
+  },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 12,
+    marginTop: -8,
+    marginBottom: 8,
+    marginLeft: 4,
   },
   pickerWrapper: {
     marginBottom: 12,
